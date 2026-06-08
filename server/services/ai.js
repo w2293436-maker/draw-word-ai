@@ -391,13 +391,24 @@ The character's pose, action, and expression must exactly match the described ac
     scenes[i].isComicPage = false;
 
     if (imageApiKey) {
-      scenes[i].imageUrl = await generateWithWanxiang(imgPrompt, imageApiKey, storySeed + i);
+      const result = await generateWithWanxiang(imgPrompt, imageApiKey, storySeed + i);
+      if (result) {
+        scenes[i].imageUrl = result.url;
+        if (result.rejected) {
+          scenes[i].reviewRejected = true;
+          scenes[i].reviewReason = result.reason;
+          console.log(`    🚫 第${i+1}幅被内容审核拦截: ${result.reason}`);
+        }
+      }
     } else {
       scenes[i].imageUrl = await generateWithPollinations(imgPrompt);
     }
 
     if (!scenes[i].imageUrl) {
-      scenes[i].imageUrl = generateFallbackImage(scenes[i].sceneDescription || '', style);
+      scenes[i].imageUrl = generateFallbackImage(
+        scenes[i].reviewRejected ? '内容安全审核未通过' : (scenes[i].sceneDescription || ''),
+        style
+      );
     }
   }
 
@@ -474,19 +485,28 @@ async function generateWithWanxiang(prompt, apiKey, seed = 0, size = '1024*768')
       if (status === 'SUCCEEDED') {
         const imageUrl = pollData.output?.results?.[0]?.url;
         if (imageUrl) {
-          // 检查图片是否因内容违规被拦截
-          if (pollData.output?.results?.[0]?.review_status === 'rejected') {
-            console.error(`    ❌ 图片内容违规被拦截`);
-            return null;
+          // 检查阿里云内容审核结果
+          const reviewStatus = pollData.output?.results?.[0]?.review_status;
+          if (reviewStatus === 'rejected') {
+            console.error(`    🚫 阿里云审核拦截: ${pollData.output?.results?.[0]?.review_reason || '违规内容'}`);
+            return { url: null, rejected: true, reason: '图片内容违规，已被安全系统拦截' };
           }
-          console.log(`    ✅ 完成`);
-          return imageUrl;
+          if (reviewStatus === 'reviewing') {
+            console.log(`    ⚠️ 图片人工审核中...`);
+          }
+          console.log(`    ✅ 完成 (审核: ${reviewStatus || '通过'})`);
+          return { url: imageUrl, rejected: false };
         }
         return null;
       }
 
       if (status === 'FAILED') {
-        console.error(`    ❌ 失败: ${pollData.output?.message || '未知'}`);
+        const failMsg = pollData.output?.message || '';
+        if (failMsg.includes('content') || failMsg.includes('safety') || failMsg.includes('review')) {
+          console.error(`    🚫 内容审核失败: ${failMsg}`);
+          return { url: null, rejected: true, reason: '内容未通过安全审核' };
+        }
+        console.error(`    ❌ 失败: ${failMsg || '未知'}`);
         return null;
       }
     }

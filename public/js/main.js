@@ -249,7 +249,9 @@ function showResult(data) {
       ${!isComicPage ? `
       <div class="panel-image-wrap">
         <span class="panel-number">${i + 1}</span>
-        ${scene.imageUrl
+        ${scene.reviewRejected
+          ? `<div class="panel-image" style="display:flex;align-items:center;justify-content:center;background:#FFF0F0;font-size:0.9rem;text-align:center;padding:20px;color:#c00;">🚫 内容审核未通过<br><small>${escapeHtml(scene.reviewReason||'')}</small></div>`
+          : scene.imageUrl
           ? `<img class="panel-image" src="${scene.imageUrl}" alt="Panel ${i + 1}" loading="${i < 3 ? 'eager' : 'lazy'}">`
           : `<div class="panel-image" style="display:flex;align-items:center;justify-content:center;background:#F0EEFF;font-size:0.9rem;text-align:center;padding:20px;">🎨 图片生成中...<br><small>请重试</small></div>`
         }
@@ -262,7 +264,7 @@ function showResult(data) {
         <p class="panel-zh">${escapeHtml(scene.chineseTranslation)}</p>
         <div class="panel-vocab">
           ${(scene.vocabulary || []).map(v =>
-            `<span class="vocab-chip" title="${escapeHtml(v.meaning)}: ${escapeHtml(v.example || '')}">${escapeHtml(v.word)}</span>`
+            `<span class="vocab-chip" onclick="event.stopPropagation();toggleVocab('${(v.word||'').replace(/'/g,\"\\\\'\")}','${(v.meaning||'').replace(/'/g,\"\\\\'\")}','${(v.example||'').replace(/'/g,\"\\\\'\")}')" title="点击收藏">${escapeHtml(v.word)}</span>`
           ).join('')}
         </div>
         <div class="panel-grammar">💡 ${escapeHtml(scene.grammarNote || '')}</div>
@@ -795,4 +797,201 @@ function setupSettingsEvents() {
 document.addEventListener('DOMContentLoaded', () => {
   initSettingsPanel();
   setupSettingsEvents();
+  initTermsAgreement();
+  initVocabBook();
+  initHistory();
 });
+
+// ============================================
+// 1. 用户协议同意
+// ============================================
+function initTermsAgreement() {
+  const agreed = localStorage.getItem('terms-agreed');
+  if (agreed === 'yes') {
+    document.getElementById('termsModal').classList.add('hidden');
+    return;
+  }
+  document.getElementById('termsModal').classList.remove('hidden');
+  document.getElementById('btnAgreeTerms').addEventListener('click', () => {
+    localStorage.setItem('terms-agreed', 'yes');
+    document.getElementById('termsModal').classList.add('hidden');
+  });
+}
+
+// ============================================
+// 2. 生词本
+// ============================================
+function getVocabBook() {
+  try { return JSON.parse(localStorage.getItem('vocab-book') || '[]'); }
+  catch { return []; }
+}
+function saveVocabBook(book) {
+  localStorage.setItem('vocab-book', JSON.stringify(book));
+}
+
+function toggleVocab(word, meaning, example) {
+  const book = getVocabBook();
+  const idx = book.findIndex(v => v.word === word);
+  if (idx >= 0) {
+    book.splice(idx, 1);
+  } else {
+    book.push({ word, meaning, example, addedAt: new Date().toISOString() });
+  }
+  saveVocabBook(book);
+  updateVocabChips();
+}
+
+function updateVocabChips() {
+  const book = getVocabBook();
+  const saved = new Set(book.map(v => v.word));
+  document.querySelectorAll('.vocab-chip').forEach(chip => {
+    const word = chip.textContent.replace('⭐','').trim();
+    if (saved.has(word)) {
+      chip.classList.add('saved');
+      if (!chip.textContent.startsWith('⭐')) chip.textContent = '⭐ ' + word;
+    } else {
+      chip.classList.remove('saved');
+      chip.textContent = word;
+    }
+  });
+}
+
+function showVocabBook() {
+  const book = getVocabBook();
+  if (book.length === 0) {
+    alert('生词本为空，点击漫画中的单词即可收藏');
+    return;
+  }
+
+  let html = '<div style="max-height:60vh;overflow-y:auto">';
+  book.forEach(v => {
+    html += `<div class="vocab-item" style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="vocab-word">⭐ ${escapeHtml(v.word)}</div>
+        <div class="vocab-meaning">${escapeHtml(v.meaning || '')}</div>
+        <div class="vocab-example">${escapeHtml(v.example || '')}</div>
+      </div>
+      <button onclick="removeVocab('${escapeHtml(v.word)}')" style="border:none;background:none;cursor:pointer;font-size:18px">🗑️</button>
+    </div>`;
+  });
+  html += '</div>';
+  html += `<div style="margin-top:16px;display:flex;gap:10px">
+    <button class="btn-setting-action btn-reset" onclick="exportVocab()">📥 导出CSV</button>
+    <button class="btn-setting-action btn-reset" onclick="clearVocab()">🗑️ 清空</button>
+  </div>`;
+
+  document.getElementById('grammarContent').innerHTML = html;
+  document.getElementById('grammarModal').classList.remove('hidden');
+  document.querySelector('#grammarModal .modal-header h3').textContent = '📚 生词本';
+}
+
+function removeVocab(word) {
+  const book = getVocabBook();
+  saveVocabBook(book.filter(v => v.word !== word));
+  showVocabBook();
+  updateVocabChips();
+}
+
+function clearVocab() {
+  if (confirm('确定清空所有生词？')) {
+    saveVocabBook([]);
+    updateVocabChips();
+    showVocabBook();
+  }
+}
+
+function exportVocab() {
+  const book = getVocabBook();
+  let csv = 'Word,Meaning,Example\n';
+  book.forEach(v => {
+    csv += `"${v.word}","${v.meaning}","${v.example}"\n`;
+  });
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'vocabulary.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function initVocabBook() {
+  updateVocabChips();
+}
+
+// ============================================
+// 3. 历史记录
+// ============================================
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('comic-history') || '[]'); }
+  catch { return []; }
+}
+
+function saveHistory(data) {
+  const history = getHistory();
+  history.unshift({
+    title: data.title,
+    text: data.fullText,
+    style: data.style,
+    lang: data.lang || currentLang,
+    scenes: data.scenes,
+    grammarSummary: data.grammarSummary,
+    imageProvider: data.imageProvider,
+    date: new Date().toISOString(),
+  });
+  // 保留最新20条
+  if (history.length > 20) history.length = 20;
+  localStorage.setItem('comic-history', JSON.stringify(history));
+}
+
+function showHistory() {
+  const history = getHistory();
+  if (history.length === 0) {
+    alert('暂无历史记录，生成漫画后自动保存');
+    return;
+  }
+
+  let html = '<div style="max-height:60vh;overflow-y:auto">';
+  history.forEach((h, i) => {
+    const date = new Date(h.date).toLocaleString('zh-CN');
+    const langLabel = h.lang === 'es' ? '🇪🇸' : '🇺🇸';
+    html += `<div class="vocab-item" style="cursor:pointer;margin-bottom:8px" onclick="loadHistory(${i})">
+      <div style="display:flex;justify-content:space-between">
+        <strong>${escapeHtml(h.title || '无标题')}</strong>
+        <span style="font-size:12px;color:var(--apple-ink-48)">${date} ${langLabel}</span>
+      </div>
+      <div style="font-size:13px;color:var(--apple-ink-48);margin-top:4px">${escapeHtml((h.text||'').slice(0,60))}...</div>
+    </div>`;
+  });
+  html += '</div>';
+
+  document.getElementById('grammarContent').innerHTML = html;
+  document.getElementById('grammarModal').classList.remove('hidden');
+  document.querySelector('#grammarModal .modal-header h3').textContent = '📜 历史记录';
+}
+
+function loadHistory(index) {
+  const history = getHistory();
+  const h = history[index];
+  if (!h) return;
+
+  currentData = {
+    title: h.title,
+    fullText: h.text,
+    style: h.style,
+    scenes: h.scenes,
+    grammarSummary: h.grammarSummary,
+    imageProvider: h.imageProvider,
+  };
+  currentLang = h.lang || 'en';
+
+  hideGrammarModal();
+  showResult(currentData);
+}
+
+function initHistory() {
+  // 生成完成后自动保存
+  const origShowResult = showResult;
+  showResult = function(data) {
+    origShowResult(data);
+    saveHistory(data);
+  };
+}

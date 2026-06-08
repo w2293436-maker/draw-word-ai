@@ -197,7 +197,13 @@
           🔊 听朗读
         </button>
         <button class="action-btn" id="btnGrammar" title="查看语法总结">
-          📝 语法总结
+          📝 语法
+        </button>
+        <button class="action-btn" onclick="showVocabBook()" title="生词本">
+          📚 生词本
+        </button>
+        <button class="action-btn" onclick="showHistory()" title="历史记录">
+          📜 历史
         </button>
         <button class="action-btn" id="btnBack" title="重新生成">
           🔄 重新生成
@@ -255,6 +261,29 @@
     <p class="footer-copy">&copy; 2026 画词AI. All rights reserved. 支持英语/西班牙语学习，仅供合法学习用途。</p>
   </footer>
 
-  <script src="/js/main.js?v=2"></script>
+  <!-- 用户协议弹窗 -->
+  <div class="modal-overlay" id="termsModal">
+    <div class="modal" style="max-width:500px">
+      <div class="modal-header">
+        <h3>📋 用户协议与条款</h3>
+      </div>
+      <div class="modal-body" style="max-height:50vh;overflow-y:auto">
+        <p style="margin-bottom:12px">欢迎使用画词AI！使用前请阅读并同意以下条款：</p>
+        <ul style="font-size:14px;color:var(--apple-ink-80);line-height:1.8;padding-left:18px">
+          <li>本工具仅供<strong>合法外语学习</strong>使用</li>
+          <li>禁止生成色情、暴力、违法内容，违者自行承担法律责任</li>
+          <li>AI 生成内容可能存在不准确之处</li>
+          <li>我们不会收集您的个人信息</li>
+        </ul>
+        <p style="margin-top:12px;font-size:13px;color:var(--apple-ink-48)">继续使用即表示您同意<a href="/terms.html" target="_blank">使用条款</a>和<a href="/privacy.html" target="_blank">隐私政策</a></p>
+      </div>
+      <div style="padding:16px 24px;border-top:1px solid var(--apple-divider);display:flex;gap:10px">
+        <button class="btn-setting-action btn-reset" onclick="window.location.href='about:blank'">拒绝</button>
+        <button class="btn-setting-action btn-save" id="btnAgreeTerms">同意并继续</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js?v=3"></script>
 </body>
 </html>
