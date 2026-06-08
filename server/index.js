@@ -93,7 +93,7 @@ app.post('/api/generate-comic', async (req, res) => {
   }
 });
 
-// TTS 语音合成（Python edge-tts 引擎，微软纯正发音）
+// TTS 语音合成（优先微软 Edge，兜底 Google）
 app.post('/api/tts', async (req, res) => {
   try {
     const { text, lang } = req.body;
@@ -101,6 +101,20 @@ app.post('/api/tts', async (req, res) => {
       return res.status(400).json({ error: '请输入文本' });
     }
 
+    const buffer = await ttsWithFallback(text, lang);
+
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Content-Length', buffer.length);
+    res.send(buffer);
+  } catch (err) {
+    console.error('TTS 失败:', err.message);
+    res.status(500).json({ error: `语音合成失败` });
+  }
+});
+
+async function ttsWithFallback(text, lang) {
+  // 尝试微软 Edge TTS（纯正发音，需要 Python）
+  try {
     const voice = lang === 'es' ? 'es-ES-AlvaroNeural' : 'en-US-JennyNeural';
     const tmpFile = require('path').join(require('os').tmpdir(), `tts_${Date.now()}.mp3`);
 
@@ -113,16 +127,42 @@ app.post('/api/tts', async (req, res) => {
     const buffer = require('fs').readFileSync(tmpFile);
     require('fs').unlinkSync(tmpFile);
 
-    if (buffer.length === 0) throw new Error('TTS 生成空音频');
-
-    res.set('Content-Type', 'audio/mpeg');
-    res.set('Content-Length', buffer.length);
-    res.send(buffer);
-  } catch (err) {
-    console.error('TTS 失败:', err.message);
-    res.status(500).json({ error: `语音合成失败` });
+    if (buffer.length > 0) {
+      console.log(`TTS: Edge ${voice}`);
+      return buffer;
+    }
+  } catch (e) {
+    console.log('Edge TTS 不可用，降级到 Google');
   }
-});
+
+  // 兜底：Google TTS（无需额外依赖）
+  const chunks = splitGoogleTTSText(text);
+  const bufs = [];
+
+  for (const chunk of chunks) {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(chunk)}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    bufs.push(Buffer.from(await res.arrayBuffer()));
+  }
+
+  console.log(`TTS: Google (${lang})`);
+  return Buffer.concat(bufs);
+}
+
+function splitGoogleTTSText(text) {
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const chunks = [];
+  let current = '';
+  for (const s of sentences) {
+    if ((current + s).length > 180 && current) { chunks.push(current.trim()); current = s; }
+    else { current += ' ' + s; }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.length > 0 ? chunks : [text.slice(0, 180)];
+}
 
 // 文本分段
 function splitText(text, maxLen) {
