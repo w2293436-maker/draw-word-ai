@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>画词AI · Draw Word</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=2">
 </head>
 <body>
   <!-- ====== 顶部导航 ====== -->
@@ -279,11 +279,11 @@
       </div>
       <div style="padding:16px 24px;border-top:1px solid var(--apple-divider);display:flex;gap:10px">
         <button class="btn-setting-action btn-reset" onclick="window.location.href='about:blank'">拒绝</button>
-        <button class="btn-setting-action btn-save" id="btnAgreeTerms">同意并继续</button>
+        <button class="btn-setting-action btn-save" id="btnAgreeTerms" onclick="localStorage.setItem('terms-agreed','yes');document.getElementById('termsModal').classList.add('hidden')">同意并继续</button>
       </div>
     </div>
   </div>
 
-  <script src="/js/main.js?v=3"></script>
+  <script src="/js/main.js?v=4"></script>
 </body>
 </html>
