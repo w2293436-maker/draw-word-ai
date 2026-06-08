@@ -13,6 +13,7 @@
 | 开发指南 | [docs/development-guide.md](docs/development-guide.md) | 环境搭建、启动、部署、禁忌 |
 | 内容安全 | [docs/content-policy.md](docs/content-policy.md) | 四道审核防线、敏感词、拦截规则 |
 | API 文档 | [docs/api-docs.md](docs/api-docs.md) | 接口参数、响应格式 |
+| 项目总结 | [docs/project-summary.md](docs/project-summary.md) | 产品运营视角完整总结 |
 | 开发日志 | [dev-logs/](dev-logs/) | 每天开发记录 |
 
 ## 🤖 AI 工作指引
