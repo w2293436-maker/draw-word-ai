@@ -67,11 +67,13 @@ function unlockAudio() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  checkHealth();
-  setupEventListeners();
+  try { checkHealth(); } catch(e) { console.error('checkHealth:', e.message); }
+  try { setupEventListeners(); } catch(e) { console.error('setupEvents:', e.message); }
   // 移动端首次触摸解锁
-  document.addEventListener('touchstart', unlockAudio, { once: true });
-  document.addEventListener('click', unlockAudio, { once: true });
+  try {
+    document.addEventListener('touchstart', unlockAudio, { once: true });
+    document.addEventListener('click', unlockAudio, { once: true });
+  } catch(e) {}
 });
 
 // 检查后端模式（演示 vs 正式）
@@ -798,13 +800,17 @@ function setupSettingsEvents() {
   });
 }
 
-// 在 DOM 加载后初始化
+// 在 DOM 加载后初始化（每个模块独立防护）
 document.addEventListener('DOMContentLoaded', () => {
-  initSettingsPanel();
-  setupSettingsEvents();
-  initTermsAgreement();
-  initVocabBook();
-  initHistory();
+  const safeInit = (name, fn) => {
+    try { fn(); console.log('✅', name); }
+    catch(e) { console.error('❌', name, e.message); }
+  };
+  safeInit('设置面板', initSettingsPanel);
+  safeInit('设置事件', setupSettingsEvents);
+  safeInit('协议弹窗', initTermsAgreement);
+  safeInit('生词本', initVocabBook);
+  safeInit('历史记录', initHistory);
 });
 
 // ============================================
