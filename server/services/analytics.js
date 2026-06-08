@@ -345,7 +345,32 @@ function getKPISummary() {
   const users = loadUsers();
   const todayUsers = Object.values(users).filter(u => u.visitDates?.includes(today)).length;
 
+  // 周环比（本周 vs 上周）
+  const thisWeekStart = getWeekStart(today);
+  const lastWeekStart = thisWeekStart - 7 * 86400000;
+  let thisWeek = 0, lastWeek = 0;
+  dates.forEach(d => {
+    const ts = new Date(d).getTime();
+    if (ts >= thisWeekStart) thisWeek += (daily[d]?.totalGenerations || 0);
+    else if (ts >= lastWeekStart) lastWeek += (daily[d]?.totalGenerations || 0);
+  });
+  const wowChange = lastWeek > 0 ? (((thisWeek - lastWeek) / lastWeek) * 100).toFixed(0) : '—';
+
+  // 月环比
+  const thisMonth = today.slice(0, 7);
+  const lastMonth = getLastMonth(thisMonth);
+  let thisM = 0, lastM = 0;
+  dates.forEach(d => {
+    if (d.startsWith(thisMonth)) thisM += (daily[d]?.totalGenerations || 0);
+    else if (d.startsWith(lastMonth)) lastM += (daily[d]?.totalGenerations || 0);
+  });
+  const momChange = lastM > 0 ? (((thisM - lastM) / lastM) * 100).toFixed(0) : '—';
+
   return {
+    comparisons: {
+      wow: { thisWeek, lastWeek, change: wowChange },
+      mom: { thisMonth: thisM, lastMonth: lastM, change: momChange },
+    },
     today: {
       generations: todayData.totalGenerations || 0,
       success: todayData.successGenerations || 0,
@@ -406,6 +431,20 @@ function getEmptySummary() {
     distribution: { language: { en: 0, es: 0 }, style: { manga: 0, illustration: 0, children: 0 } },
     activeDays: 0,
   };
+}
+
+function getWeekStart(dateStr) {
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+  d.setDate(diff);
+  return d.getTime();
+}
+
+function getLastMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return m === 1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,'0')}`;
 }
 
 module.exports = {

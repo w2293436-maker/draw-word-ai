@@ -121,6 +121,8 @@
 
     <div class="page active" id="page-overview">
       <div class="kpi-grid" id="kpiGrid"></div>
+      <!-- 环比卡片 -->
+      <div class="chart-row" id="comparisonCards"></div>
       <div class="chart-card"><div class="chart-title">📈 每日生成趋势（近30天）</div><div class="chart-wrap"><canvas id="chartDaily"></canvas></div></div>
       <div class="chart-row">
         <div class="chart-card"><div class="chart-title">🌐 语言分布</div><div class="chart-wrap" style="height:220px"><canvas id="chartLang"></canvas></div></div>
@@ -229,6 +231,29 @@
         <div class="kpi-card"><div class="kpi-label">累计用户</div><div class="kpi-value">${s.total?.totalUsers||0}</div></div>
         <div class="kpi-card"><div class="kpi-label">累计成本</div><div class="kpi-value">¥${s.total?.totalCost||'0.00'}</div></div>
         <div class="kpi-card"><div class="kpi-label">运行天数</div><div class="kpi-value">${s.activeDays||0}</div><div class="kpi-sub">近7日 ${s.last7Days?.total||0} 次</div></div>
+      `;
+
+      // 周环比 + 月环比
+      const comp = s.comparisons || {};
+      const fmtChg = (v) => { if (v === '—') return v; return (v >= 0 ? '↑' : '↓') + Math.abs(v) + '%'; };
+      const chgColor = (v) => v >= 0 ? '#34c759' : '#ff3b30';
+      document.getElementById('comparisonCards').innerHTML = `
+        <div class="chart-card">
+          <div class="chart-title">📅 周环比（本周 vs 上周）</div>
+          <div style="display:flex;justify-content:space-around;margin-top:12px">
+            <div><div style="font-size:11px;color:var(--text2)">上周</div><div style="font-size:28px;font-weight:700">${comp.wow?.lastWeek||0}</div></div>
+            <div><div style="font-size:11px;color:var(--text2)">本周</div><div style="font-size:28px;font-weight:700">${comp.wow?.thisWeek||0}</div></div>
+            <div><div style="font-size:11px;color:var(--text2)">变化</div><div style="font-size:28px;font-weight:700;color:${chgColor(comp.wow?.change||0)}">${fmtChg(comp.wow?.change||'—')}</div></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">📆 月环比（本月 vs 上月）</div>
+          <div style="display:flex;justify-content:space-around;margin-top:12px">
+            <div><div style="font-size:11px;color:var(--text2)">上月</div><div style="font-size:28px;font-weight:700">${comp.mom?.lastMonth||0}</div></div>
+            <div><div style="font-size:11px;color:var(--text2)">本月</div><div style="font-size:28px;font-weight:700">${comp.mom?.thisMonth||0}</div></div>
+            <div><div style="font-size:11px;color:var(--text2)">变化</div><div style="font-size:28px;font-weight:700;color:${chgColor(comp.mom?.change||0)}">${fmtChg(comp.mom?.change||'—')}</div></div>
+          </div>
+        </div>
       `;
 
       destroyChart('daily');

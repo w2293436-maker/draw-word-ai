@@ -221,6 +221,36 @@ async function generateComic() {
     clearInterval(msgInterval);
     console.error('生成失败:', err);
     showError(err.message);
+    // 保留已输入文本，不清空
+    inputSection.classList.remove('hidden');
+    textInput.value = text; // 恢复文本
+    textInput.scrollIntoView({ behavior: 'smooth' });
+    // 再加一个重试按钮
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'btn-generate';
+    retryBtn.style.cssText = 'margin-top:12px;background:#ff3b30';
+    retryBtn.textContent = '🔄 自动重试中...';
+    errorSection.appendChild(retryBtn);
+
+    // 3秒后自动重试
+    await new Promise(r => setTimeout(r, 3000));
+    retryBtn.textContent = '🔄 正在重试...';
+    try {
+      const res2 = await fetch('/api/generate-comic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, style: currentStyle, lang: currentLang }),
+      });
+      if (res2.ok) {
+        const data2 = await res2.json();
+        currentData = data2;
+        retryBtn.remove();
+        showResult(data2);
+        return;
+      }
+    } catch {}
+    retryBtn.textContent = '🔄 手动重试';
+    retryBtn.onclick = generateComic;
   }
 }
 
@@ -941,6 +971,7 @@ function initVocabBook() {
     const { action, word, meaning, example, index } = target.dataset;
 
     if (action === 'vocab') toggleVocab(word, meaning, example);
+    else if (action === 'shareComic') shareComic();
     else if (action === 'showVocab') showVocabBook();
     else if (action === 'showHistory') showHistory();
     else if (action === 'loadHistory') loadHistory(parseInt(index));
@@ -1018,6 +1049,36 @@ function loadHistory(index) {
 
   hideGrammarModal();
   showResult(currentData);
+}
+
+// ============================================
+// 分享功能
+// ============================================
+function shareComic() {
+  if (!currentData) return;
+
+  const title = currentData.title || 'AI英语漫画';
+  const vocab = currentData.scenes?.flatMap(s => s.vocabulary || []).slice(0, 10).map(v => v.word).join(', ') || '';
+  const grammar = currentData.grammarSummary?.slice(0, 3).map(g => g.title).join('、') || '';
+  const text = `📖 ${title}\n\n📚 词汇: ${vocab}\n📝 语法: ${grammar}\n\n✨ 由画词AI生成 — drawword-ai-production.up.railway.app`;
+
+  // 优先用 Web Share API（手机原生分享）
+  if (navigator.share) {
+    navigator.share({ title, text }).catch(() => {});
+    return;
+  }
+
+  // 桌面端：复制到剪贴板
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('[data-action="shareComic"]');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✅ 已复制';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  }).catch(() => {
+    alert('分享失败，请手动复制:\n\n' + text);
+  });
 }
 
 function initHistory() {
