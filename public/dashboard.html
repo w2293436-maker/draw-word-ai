@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据看板 · 画词AI</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f5f7; --card: #fff; --text: #1d1d1f; --text2: #6e6e73;
+      --blue: #0066cc; --green: #34c759; --red: #ff3b30; --orange: #ff9500; --purple: #af52de;
+      --border: #e5e5ea;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, system-ui, 'PingFang SC', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+    header { background: #1d1d1f; color: #fff; padding: 0 24px; height: 44px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 600; }
+    header a { color: #999; text-decoration: none; font-size: 12px; font-weight: 400; }
+    header a:hover { color: #fff; }
+    nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; gap: 0; }
+    nav a { padding: 12px 20px; font-size: 14px; color: var(--text2); text-decoration: none; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    nav a:hover, nav a.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+    .main { max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: var(--card); border-radius: 16px; padding: 20px; border: 1px solid var(--border); }
+    .kpi-label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .kpi-value { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    .kpi-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+    .chart-card { background: var(--card); border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid var(--border); }
+    .chart-title { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+    .chart-wrap { position: relative; width: 100%; height: 280px; }
+    .chart-wrap canvas { width: 100% !important; height: 100% !important; }
+    .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .chart-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media (max-width: 768px) { .chart-row, .chart-row-3 { grid-template-columns: 1fr; } }
+
+    .refresh-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .last-update { font-size: 12px; color: var(--text2); }
+    .btn-refresh { padding: 6px 16px; border-radius: 20px; border: 1px solid var(--border); background: var(--card); cursor: pointer; font-size: 13px; font-family: inherit; }
+    .btn-refresh:hover { border-color: var(--blue); color: var(--blue); }
+
+    .user-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .user-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); color: var(--text2); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+    .user-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .user-table tr:hover td { background: #f5f9ff; }
+    .tier-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .tier-power { background: #e8f5e9; color: #2e7d32; }
+    .tier-active { background: #e3f2fd; color: #1565c0; }
+    .tier-regular { background: #fff3e0; color: #e65100; }
+    .tier-new { background: #f3e5f5; color: #7b1fa2; }
+    .uid-text { font-family: monospace; font-size: 11px; color: var(--text2); }
+
+    .seg-card { text-align: center; padding: 16px; }
+    .seg-count { font-size: 36px; font-weight: 700; }
+    .seg-label { font-size: 14px; color: var(--text2); margin-top: 4px; }
+    .seg-sub { font-size: 12px; color: var(--text2); }
+
+    /* ====== 密码锁屏 ====== */
+    .lock-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999; backdrop-filter: blur(10px);
+    }
+    .lock-card {
+      background: var(--card); border-radius: 20px; padding: 40px 36px;
+      text-align: center; width: 360px; max-width: 90vw;
+      border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .lock-icon { font-size: 48px; margin-bottom: 16px; }
+    .lock-title { font-size: 21px; font-weight: 700; margin-bottom: 8px; }
+    .lock-desc { font-size: 14px; color: var(--text2); margin-bottom: 24px; }
+    .lock-input {
+      width: 100%; padding: 12px 16px; border: 2px solid var(--border);
+      border-radius: 12px; font-size: 16px; text-align: center; font-family: inherit;
+      letter-spacing: 4px; transition: border-color 0.2s;
+    }
+    .lock-input:focus { outline: none; border-color: var(--blue); }
+    .lock-error { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 20px; }
+    .lock-btn {
+      width: 100%; margin-top: 16px; padding: 12px;
+      background: var(--blue); color: #fff; border: none;
+      border-radius: 12px; font-size: 16px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: opacity 0.2s;
+    }
+    .lock-btn:hover { opacity: 0.9; }
+    .lock-hint { font-size: 11px; color: var(--text2); margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <!-- ====== 密码锁屏 ====== -->
+  <div class="lock-overlay" id="lockOverlay">
+    <div class="lock-card">
+      <div class="lock-icon">🔐</div>
+      <div class="lock-title">数据看板</div>
+      <div class="lock-desc">请输入密码查看运营数据</div>
+      <input type="password" class="lock-input" id="lockInput" placeholder="····" maxlength="20" autofocus>
+      <div class="lock-error" id="lockError"></div>
+      <button class="lock-btn" id="lockBtn">解锁</button>
+      <div class="lock-hint">密码错误？联系管理员重置</div>
+    </div>
+  </div>
+
+  <header>
+    <span>📊 画词AI · 数据看板</span>
+    <a href="/">← 返回主页</a>
+  </header>
+  <nav>
+    <a href="#" class="active" data-page="overview">📈 总览</a>
+    <a href="#" data-page="users">👥 用户分析</a>
+  </nav>
+
+  <main class="main">
+    <div class="refresh-bar">
+      <span class="last-update" id="lastUpdate">加载中...</span>
+      <button class="btn-refresh" onclick="refreshAll()">🔄 刷新</button>
+    </div>
+
+    <div class="page active" id="page-overview">
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="chart-card"><div class="chart-title">📈 每日生成趋势（近30天）</div><div class="chart-wrap"><canvas id="chartDaily"></canvas></div></div>
+      <div class="chart-row">
+        <div class="chart-card"><div class="chart-title">🌐 语言分布</div><div class="chart-wrap" style="height:220px"><canvas id="chartLang"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">🎨 风格分布</div><div class="chart-wrap" style="height:220px"><canvas id="chartStyle"></canvas></div></div>
+      </div>
+      <div class="chart-card"><div class="chart-title">⏰ 使用时段分布（近30天）</div><div class="chart-wrap"><canvas id="chartHourly"></canvas></div></div>
+    </div>
+
+    <div class="page" id="page-users">
+      <div class="chart-card"><div class="chart-title">👥 用户分层</div><div class="chart-row" id="segGrid"></div></div>
+      <div class="chart-row" id="retentionCards"></div>
+      <div class="chart-row">
+        <div class="chart-card"><div class="chart-title">🌐 用户语言偏好</div><div class="chart-wrap" style="height:220px"><canvas id="chartUserLang"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">🎨 用户风格偏好</div><div class="chart-wrap" style="height:220px"><canvas id="chartUserStyle"></canvas></div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📋 用户明细</div>
+        <div style="overflow-x:auto">
+          <table class="user-table">
+            <thead><tr><th>用户ID</th><th>分层</th><th>首次访问</th><th>最近访问</th><th>访问</th><th>生成</th><th>成功率</th><th>主力语言</th><th>主力风格</th><th>活跃天</th><th>频率</th><th>成本</th></tr></thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ========== 密码验证 ==========
+    const DASHBOARD_PASSWORD = 'drawword2026'; // ← 在这改密码
+
+    const lockOverlay = document.getElementById('lockOverlay');
+    const lockInput = document.getElementById('lockInput');
+    const lockError = document.getElementById('lockError');
+    const lockBtn = document.getElementById('lockBtn');
+
+    function tryUnlock() {
+      const input = lockInput.value.trim();
+      if (!input) { lockError.textContent = '请输入密码'; return; }
+
+      // 验证密码（生产环境建议改为服务端校验）
+      if (input === DASHBOARD_PASSWORD) {
+        lockOverlay.style.display = 'none';
+        sessionStorage.setItem('dashboard_unlocked', '1');
+        refreshAll();
+      } else {
+        lockError.textContent = '密码错误，请重试';
+        lockInput.value = '';
+        lockInput.focus();
+        lockInput.style.borderColor = '#ff3b30';
+        setTimeout(() => { lockInput.style.borderColor = ''; }, 500);
+      }
+    }
+
+    lockBtn.addEventListener('click', tryUnlock);
+    lockInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+
+    // 检查是否已解锁（同标签页会话内有效）
+    if (sessionStorage.getItem('dashboard_unlocked') === '1') {
+      lockOverlay.style.display = 'none';
+    }
+
+    // ========== 数据看板逻辑 ==========
+    let charts = {};
+
+    function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+    async function refreshAll() {
+      try {
+        const activePage = document.querySelector('.page.active')?.id || 'page-overview';
+        const fetches = [
+          fetch('/api/analytics/summary').then(r => r.json()),
+          fetch('/api/analytics/daily?days=30').then(r => r.json()),
+          fetch('/api/analytics/hourly').then(r => r.json()),
+        ];
+
+        if (activePage === 'page-users') {
+          fetches.push(fetch('/api/analytics/users/segments').then(r => r.json()));
+          fetches.push(fetch('/api/analytics/users/retention').then(r => r.json()));
+          fetches.push(fetch('/api/analytics/users?limit=100').then(r => r.json()));
+        }
+
+        const results = await Promise.all(fetches);
+        const [summary, daily, hourly] = results;
+
+        if (activePage === 'page-overview') {
+          renderOverview(summary, daily, hourly);
+        } else if (activePage === 'page-users') {
+          renderOverview(summary, daily, hourly);
+          const [, , , segments, retention, userList] = results;
+          if (segments && retention && userList) renderUserAnalysis(segments, retention, userList);
+        }
+
+        document.getElementById('lastUpdate').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+      } catch (e) {
+        console.error(e);
+        document.getElementById('lastUpdate').textContent = '加载失败';
+      }
+    }
+
+    function renderOverview(s, daily, hourly) {
+      document.getElementById('kpiGrid').innerHTML = `
+        <div class="kpi-card"><div class="kpi-label">今日生成</div><div class="kpi-value">${s.today?.generations||0}</div><div class="kpi-sub">成功率 ${s.today?.successRate||'0%'}</div></div>
+        <div class="kpi-card"><div class="kpi-label">今日活跃用户</div><div class="kpi-value">${s.today?.activeUsers||0}</div></div>
+        <div class="kpi-card"><div class="kpi-label">累计生成</div><div class="kpi-value">${s.total?.generations||0}</div><div class="kpi-sub">${s.total?.totalScenes||0} 分镜</div></div>
+        <div class="kpi-card"><div class="kpi-label">累计用户</div><div class="kpi-value">${s.total?.totalUsers||0}</div></div>
+        <div class="kpi-card"><div class="kpi-label">累计成本</div><div class="kpi-value">¥${s.total?.totalCost||'0.00'}</div></div>
+        <div class="kpi-card"><div class="kpi-label">运行天数</div><div class="kpi-value">${s.activeDays||0}</div><div class="kpi-sub">近7日 ${s.last7Days?.total||0} 次</div></div>
+      `;
+
+      destroyChart('daily');
+      const ctx = document.getElementById('chartDaily').getContext('2d');
+      charts.daily = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: daily.map(d => d.date.slice(5)),
+          datasets: [
+            { label: '成功', data: daily.map(d => d.success), backgroundColor: '#34c759', borderRadius: 4 },
+            { label: '失败', data: daily.map(d => d.fail), backgroundColor: '#ff3b30', borderRadius: 4 },
+          ],
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }, plugins: { legend: { position: 'bottom' } } },
+      });
+
+      destroyChart('lang');
+      const l = s.distribution?.language || { en: 0, es: 0 };
+      charts.lang = new Chart(document.getElementById('chartLang').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: ['英语', '西班牙语'], datasets: [{ data: [l.en || 0, l.es || 0], backgroundColor: ['#0066cc', '#ff9500'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+      });
+
+      destroyChart('style');
+      const st = s.distribution?.style || { manga: 0, illustration: 0, children: 0 };
+      charts.style = new Chart(document.getElementById('chartStyle').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: ['日式漫画', '现代插画', '绘本风格'], datasets: [{ data: [st.manga || 0, st.illustration || 0, st.children || 0], backgroundColor: ['#1d1d1f', '#0066cc', '#af52de'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+      });
+
+      destroyChart('hourly');
+      charts.hourly = new Chart(document.getElementById('chartHourly').getContext('2d'), {
+        type: 'line',
+        data: { labels: hourly.map(d => d.hour), datasets: [{ label: '生成次数', data: hourly.map(d => d.count), borderColor: '#0066cc', backgroundColor: 'rgba(0,102,204,0.1)', fill: true, tension: 0.3, pointRadius: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } },
+      });
+    }
+
+    function renderUserAnalysis(seg, ret, userList) {
+      const tierColors = { power: '#34c759', active: '#0066cc', regular: '#ff9500', new: '#af52de' };
+      const tierNames = { power: '👑 重度用户', active: '⭐ 活跃用户', regular: '👍 普通用户', new: '🌱 新用户' };
+      let segHTML = '';
+      for (const [key, data] of Object.entries(seg?.segments || {})) {
+        segHTML += `<div class="kpi-card seg-card"><div class="seg-count" style="color:${tierColors[key]}">${data.count}</div><div class="seg-label">${tierNames[key]}</div><div class="seg-sub">${data.pct} · 人均${data.avgGen}次</div></div>`;
+      }
+      document.getElementById('segGrid').innerHTML = segHTML;
+
+      document.getElementById('retentionCards').innerHTML = `
+        <div class="chart-card"><div class="chart-title">📅 留存率</div>
+          <div class="kpi-grid"><div class="kpi-card"><div class="kpi-label">Day-1 留存</div><div class="kpi-value">${ret?.retention?.day1||'0%'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">Day-7 留存</div><div class="kpi-value">${ret?.retention?.day7||'0%'}</div></div>
+          <div class="kpi-card"><div class="kpi-label">今日活跃</div><div class="kpi-value">${ret?.today?.active||0}</div></div>
+          <div class="kpi-card"><div class="kpi-label">昨日活跃</div><div class="kpi-value">${ret?.yesterday?.active||0}</div></div></div>
+        </div>
+      `;
+
+      destroyChart('userLang');
+      const ul = seg?.preferences?.language || { en: 0, es: 0 };
+      charts.userLang = new Chart(document.getElementById('chartUserLang').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: ['英语', '西班牙语'], datasets: [{ data: [ul.en || 0, ul.es || 0], backgroundColor: ['#0066cc', '#ff9500'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+      });
+
+      destroyChart('userStyle');
+      const us = seg?.preferences?.style || { manga: 0, illustration: 0, children: 0 };
+      charts.userStyle = new Chart(document.getElementById('chartUserStyle').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: ['日式漫画', '现代插画', '绘本风格'], datasets: [{ data: [us.manga || 0, us.illustration || 0, us.children || 0], backgroundColor: ['#1d1d1f', '#0066cc', '#af52de'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+      });
+
+      const list = userList?.list || [];
+      let rows = '';
+      list.forEach(u => {
+        rows += `<tr>
+          <td><span class="uid-text">${(u.uid||'').slice(0,8)}</span></td>
+          <td><span class="tier-badge tier-${u.tier}">${tierNames[u.tier]?.split(' ')[0]||u.tier}</span></td>
+          <td>${u.firstSeen}</td><td>${u.lastSeen}</td>
+          <td>${u.totalVisits}</td><td>${u.totalGenerations}</td><td>${u.successRate}</td>
+          <td>${u.topLang==='es'?'🇪🇸':'🇺🇸'}</td>
+          <td>${u.topStyle==='illustration'?'插画':u.topStyle==='children'?'绘本':'漫画'}</td>
+          <td>${u.activeDays}天</td><td>${u.frequency}次/天</td><td>¥${u.totalCost}</td>
+        </tr>`;
+      });
+      if (list.length === 0) rows = '<tr><td colspan="12" style="text-align:center;color:var(--text2);padding:32px;">暂无用户数据</td></tr>';
+      document.getElementById('userTableBody').innerHTML = rows;
+    }
+
+    document.querySelectorAll('nav a').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        document.querySelectorAll('nav a').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('page-' + link.dataset.page).classList.add('active');
+        refreshAll();
+      });
+    });
+
+    // 初始加载
+    if (sessionStorage.getItem('dashboard_unlocked') === '1') refreshAll();
+    setInterval(() => {
+      if (sessionStorage.getItem('dashboard_unlocked') === '1') refreshAll();
+    }, 30000);
+  </script>
+</body>
+</html>

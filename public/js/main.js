@@ -699,7 +699,7 @@ function setupSettingsEvents() {
       $('#radiusVal').textContent = '标准';
       applySettings(s);
       $('#siteLogo').innerHTML = '🎨 画词AI <span class="logo-sub">Draw Word</span>';
-      document.querySelector('.footer-copy').textContent = '画词AI · Draw Word — 让学习英语变得有趣 🎨';
+      document.querySelector('.footer-copy').textContent = '画词AI · Draw Word — 让外语学习变得有趣 🎨';
       document.querySelector('.footer-contact a').textContent = 'w2293436@gmail.com';
     }
   });
