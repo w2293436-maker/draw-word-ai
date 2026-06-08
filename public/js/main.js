@@ -928,6 +928,16 @@ function initVocabBook() {
   updateVocabChips();
 }
 
+// 确保 onclick 能调用（挂载到全局 window）
+window.showVocabBook = showVocabBook;
+window.showHistory = showHistory;
+window.toggleVocab = toggleVocab;
+window.removeVocab = removeVocab;
+window.clearVocab = clearVocab;
+window.exportVocab = exportVocab;
+window.loadHistory = loadHistory;
+window.speakSentence = speakSentence;
+
 // ============================================
 // 3. 历史记录
 // ============================================
