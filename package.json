@@ -1,0 +1,15 @@
+{
+  "name": "draw-word",
+  "version": "1.0.0",
+  "description": "画词AI · Draw Word - 通过AI将英语短文生成漫画，辅助记单词、练听力、学语法",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "openai": "^4.67.0",
+    "dotenv": "^16.4.5"
+  }
+}

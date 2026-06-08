@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>画词AI · Draw Word</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- ====== 顶部导航 ====== -->
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="logo" id="siteLogo">🎨 画词AI <span class="logo-sub">Draw Word</span></h1>
+      <div class="header-actions">
+        <span class="mode-badge" id="modeBadge">演示模式</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====== 设置面板（侧边滑出）====== -->
+  <div class="settings-overlay hidden" id="settingsOverlay">
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-header">
+        <h3>🎛️ 自定义界面</h3>
+        <button class="settings-close" id="btnCloseSettings">✕</button>
+      </div>
+      <div class="settings-body">
+        <!-- 主题色 -->
+        <div class="setting-group">
+          <label class="setting-label">🎨 主题色</label>
+          <div class="color-picker-row">
+            <input type="color" id="colorPrimary" class="color-input" value="#0066cc">
+            <span class="color-name">主色调（按钮、高亮）</span>
+          </div>
+        </div>
+
+        <!-- 背景色 -->
+        <div class="setting-group">
+          <label class="setting-label">🖼️ 背景色</label>
+          <div class="color-picker-row">
+            <input type="color" id="colorBg" class="color-input" value="#ffffff">
+            <span class="color-name">页面背景</span>
+          </div>
+        </div>
+
+        <!-- 卡片背景 -->
+        <div class="setting-group">
+          <label class="setting-label">📋 卡片背景</label>
+          <div class="color-picker-row">
+            <input type="color" id="colorCard" class="color-input" value="#FFFFFF">
+            <span class="color-name">输入框、漫画面板</span>
+          </div>
+        </div>
+
+        <!-- 文字颜色 -->
+        <div class="setting-group">
+          <label class="setting-label">📝 文字颜色</label>
+          <div class="color-picker-row">
+            <input type="color" id="colorText" class="color-input" value="#2D3436">
+            <span class="color-name">标题和正文</span>
+          </div>
+        </div>
+
+        <!-- 字号 -->
+        <div class="setting-group">
+          <label class="setting-label">🔤 字号大小：<strong id="fontSizeVal">中</strong></label>
+          <input type="range" id="fontSizeSlider" class="slider" min="0" max="2" value="1" step="1">
+          <div class="slider-labels">
+            <span>小</span><span>中</span><span>大</span>
+          </div>
+        </div>
+
+        <!-- 圆角 -->
+        <div class="setting-group">
+          <label class="setting-label">📐 圆角大小：<strong id="radiusVal">标准</strong></label>
+          <input type="range" id="radiusSlider" class="slider" min="0" max="2" value="1" step="1">
+          <div class="slider-labels">
+            <span>方正</span><span>标准</span><span>圆润</span>
+          </div>
+        </div>
+
+        <!-- Logo 文字 -->
+        <div class="setting-group">
+          <label class="setting-label">🏷️ 网站标题</label>
+          <input type="text" id="inputSiteTitle" class="text-setting" placeholder="画词AI" maxlength="20">
+          <span class="color-name">修改顶部 Logo 文字</span>
+        </div>
+
+        <!-- 页脚文字 -->
+        <div class="setting-group">
+          <label class="setting-label">📄 页脚文字</label>
+          <input type="text" id="inputFooter" class="text-setting" placeholder="让学习英语变得有趣" maxlength="30">
+          <span class="color-name">页面底部的一句话</span>
+        </div>
+
+        <!-- 按钮组 -->
+        <div class="setting-actions">
+          <button class="btn-setting-action btn-reset" id="btnReset">🔄 恢复默认</button>
+          <button class="btn-setting-action btn-save" id="btnSaveSettings">💾 保存设置</button>
+        </div>
+
+        <p class="setting-tip">💡 设置自动保存在浏览器中，下次打开还在</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 主内容区 ====== -->
+  <main class="main">
+    <!-- 输入区域 -->
+    <section class="input-section" id="inputSection">
+      <div class="card">
+        <h2 class="card-title" id="inputTitle">✍️ 输入英语短文</h2>
+        <p class="card-desc" id="inputDesc">粘贴一段英语文章、对话或课本内容，AI 会将它变成漫画</p>
+
+        <div class="input-area">
+          <textarea
+            id="textInput"
+            class="text-input"
+            placeholder="例如（英语）：&#10;&#10;Tom woke up late this morning. He rushed to the bus stop, but the bus had already left. &quot;Oh no! I'll be late for school!&quot; he thought. Just then, his neighbor Mrs. Chen pulled up in her car and offered him a ride...&#10;&#10;例如（西班牙语）：&#10;&#10;María caminaba por el parque cuando vio un perrito perdido. Lo levantó con cuidado y buscó a su dueño por todas partes..."
+            rows="6"
+            maxlength="5000"
+          ></textarea>
+          <div class="char-count"><span id="charCount">0</span>/5000</div>
+        </div>
+
+        <!-- 风格选择 -->
+        <div class="style-picker">
+          <!-- 语言选择 -->
+        <div class="style-picker">
+          <label class="style-label">🌐 学习语言：</label>
+          <div class="style-options">
+            <button class="style-btn active" data-lang="en" id="langEn">
+              <span class="style-icon">🇺🇸</span>
+              <span class="style-name">英语</span>
+            </button>
+            <button class="style-btn" data-lang="es" id="langEs">
+              <span class="style-icon">🇪🇸</span>
+              <span class="style-name">西班牙语</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 风格选择 -->
+        <label class="style-label">🎨 漫画风格：</label>
+          <div class="style-options">
+            <button class="style-btn active" data-style="manga">
+              <span class="style-icon">🇯🇵</span>
+              <span class="style-name">日式漫画</span>
+            </button>
+            <button class="style-btn" data-style="illustration">
+              <span class="style-icon">✨</span>
+              <span class="style-name">现代插画</span>
+            </button>
+            <button class="style-btn" data-style="children">
+              <span class="style-icon">🧸</span>
+              <span class="style-name">绘本风格</span>
+            </button>
+          </div>
+        </div>
+
+        <button class="btn-generate" id="btnGenerate">
+          <span class="btn-icon">✨</span>
+          生成漫画
+        </button>
+
+        <p class="tip-text" id="tipText">
+          💡 当前为<strong>演示模式</strong>，使用模拟数据展示功能。设置 API Key 后即可生成真实漫画。
+        </p>
+      </div>
+    </section>
+
+    <!-- 加载动画 -->
+    <section class="loading-section hidden" id="loadingSection">
+      <div class="loading-card">
+        <div class="comic-loader">
+          <div class="panel-loader"></div>
+          <div class="panel-loader"></div>
+          <div class="panel-loader"></div>
+        </div>
+        <p class="loading-text" id="loadingText">🤖 AI 正在分析文本...</p>
+      </div>
+    </section>
+
+    <!-- 结果区域 -->
+    <section class="result-section hidden" id="resultSection">
+      <!-- 漫画标题 -->
+      <h2 class="comic-title" id="comicTitle"></h2>
+
+      <!-- 漫画分镜区 -->
+      <div class="comic-strip" id="comicStrip">
+        <!-- 动态生成 -->
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="action-bar">
+        <button class="action-btn" id="btnAudio" title="朗读全文">
+          🔊 听朗读
+        </button>
+        <button class="action-btn" id="btnGrammar" title="查看语法总结">
+          📝 语法总结
+        </button>
+        <button class="action-btn" id="btnBack" title="重新生成">
+          🔄 重新生成
+        </button>
+      </div>
+
+      <!-- 词汇总览 -->
+      <div class="card vocab-card" id="vocabCard">
+        <h3 class="card-title">📚 核心词汇</h3>
+        <div class="vocab-grid" id="vocabGrid">
+          <!-- 动态生成 -->
+        </div>
+      </div>
+
+      <!-- 语法总结弹窗 -->
+      <div class="modal-overlay hidden" id="grammarModal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>📝 语法总结</h3>
+            <button class="modal-close" id="btnCloseGrammar">✕</button>
+          </div>
+          <div class="modal-body" id="grammarContent">
+            <!-- 动态生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 音频播放器 -->
+      <audio id="audioPlayer" class="hidden"></audio>
+    </section>
+
+    <!-- 错误提示 -->
+    <section class="error-section hidden" id="errorSection">
+      <div class="card error-card">
+        <p class="error-icon">😿</p>
+        <p class="error-message" id="errorMessage"></p>
+        <button class="btn-retry" id="btnRetry">🔄 重试</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ====== 页脚 ====== -->
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="/terms.html">使用条款</a>
+      <span class="footer-sep">|</span>
+      <a href="/privacy.html">隐私政策</a>
+      <span class="footer-sep">|</span>
+      <a href="/disclaimer.html">免责声明</a>
+    </div>
+    <p class="footer-copy">画词AI · Draw Word — 让学习英语变得有趣 🎨</p>
+    <p class="footer-contact">侵权投诉/版权联系：<a href="mailto:w2293436@gmail.com">w2293436@gmail.com</a></p>
+    <p class="footer-copy">&copy; 2026 画词AI. All rights reserved. 本服务仅供合法的英语学习用途。</p>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>
