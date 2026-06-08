@@ -261,12 +261,12 @@ function showResult(data) {
       <div class="panel-content">
         <p class="panel-en">
           ${escapeHtml(scene.originalSentence || scene.englishSentence)}
-          <button class="btn-listen-sentence" onclick="speakSentence(this)" data-text="${escapeHtml(scene.originalSentence || scene.englishSentence)}" data-lang="${currentLang}" title="朗读这句">🔊</button>
+          <button class="btn-listen-sentence-speak" data-text="${escapeHtml(scene.originalSentence || scene.englishSentence)}" data-lang="${currentLang}" title="朗读这句">🔊</button>
         </p>
         <p class="panel-zh">${escapeHtml(scene.chineseTranslation)}</p>
         <div class="panel-vocab">
           ${(scene.vocabulary || []).map(v =>
-            `<span class="vocab-chip" onclick="event.stopPropagation();toggleVocab('${(v.word||'').replace(/'/g,\"\\\\'\")}','${(v.meaning||'').replace(/'/g,\"\\\\'\")}','${(v.example||'').replace(/'/g,\"\\\\'\")}')" title="点击收藏">${escapeHtml(v.word)}</span>`
+            `<span class="vocab-chip" data-action="vocab" data-word="${escapeHtml(v.word||'')}" data-meaning="${escapeHtml(v.meaning||'')}" data-example="${escapeHtml(v.example||'')}" title="点击收藏">${escapeHtml(v.word)}</span>`
           ).join('')}
         </div>
         <div class="panel-grammar">💡 ${escapeHtml(scene.grammarNote || '')}</div>
@@ -882,13 +882,13 @@ function showVocabBook() {
         <div class="vocab-meaning">${escapeHtml(v.meaning || '')}</div>
         <div class="vocab-example">${escapeHtml(v.example || '')}</div>
       </div>
-      <button onclick="removeVocab('${escapeHtml(v.word)}')" style="border:none;background:none;cursor:pointer;font-size:18px">🗑️</button>
+      <button data-action="removeVocab" data-word="${escapeHtml(v.word)}" style="border:none;background:none;cursor:pointer;font-size:18px">🗑️</button>
     </div>`;
   });
   html += '</div>';
   html += `<div style="margin-top:16px;display:flex;gap:10px">
-    <button class="btn-setting-action btn-reset" onclick="exportVocab()">📥 导出CSV</button>
-    <button class="btn-setting-action btn-reset" onclick="clearVocab()">🗑️ 清空</button>
+    <button class="btn-setting-action btn-reset" data-action="exportVocab">📥 导出CSV</button>
+    <button class="btn-setting-action btn-reset" data-action="clearVocab">🗑️ 清空</button>
   </div>`;
 
   document.getElementById('grammarContent').innerHTML = html;
@@ -926,17 +926,29 @@ function exportVocab() {
 
 function initVocabBook() {
   updateVocabChips();
-}
+  // 事件委托：监听所有点击，分发到对应功能
+  document.body.addEventListener('click', function(e) {
+    // 朗读按钮（class 匹配）
+    const speakBtn = e.target.closest('.btn-listen-sentence-speak');
+    if (speakBtn) {
+      speakSentence(speakBtn);
+      return;
+    }
 
-// 确保 onclick 能调用（挂载到全局 window）
-window.showVocabBook = showVocabBook;
-window.showHistory = showHistory;
-window.toggleVocab = toggleVocab;
-window.removeVocab = removeVocab;
-window.clearVocab = clearVocab;
-window.exportVocab = exportVocab;
-window.loadHistory = loadHistory;
-window.speakSentence = speakSentence;
+    // data-action 事件委托
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+    const { action, word, meaning, example, index } = target.dataset;
+
+    if (action === 'vocab') toggleVocab(word, meaning, example);
+    else if (action === 'showVocab') showVocabBook();
+    else if (action === 'showHistory') showHistory();
+    else if (action === 'loadHistory') loadHistory(parseInt(index));
+    else if (action === 'removeVocab') removeVocab(word);
+    else if (action === 'clearVocab') clearVocab();
+    else if (action === 'exportVocab') exportVocab();
+  });
+}
 
 // ============================================
 // 3. 历史记录
@@ -974,7 +986,7 @@ function showHistory() {
   history.forEach((h, i) => {
     const date = new Date(h.date).toLocaleString('zh-CN');
     const langLabel = h.lang === 'es' ? '🇪🇸' : '🇺🇸';
-    html += `<div class="vocab-item" style="cursor:pointer;margin-bottom:8px" onclick="loadHistory(${i})">
+    html += `<div class="vocab-item" style="cursor:pointer;margin-bottom:8px" data-action="loadHistory" data-index="${i}">
       <div style="display:flex;justify-content:space-between">
         <strong>${escapeHtml(h.title || '无标题')}</strong>
         <span style="font-size:12px;color:var(--apple-ink-48)">${date} ${langLabel}</span>
