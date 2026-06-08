@@ -8,8 +8,10 @@
     "dev": "node --watch server/index.js"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
+    "edge-tts": "^1.0.1",
     "express": "^4.21.0",
     "openai": "^4.67.0",
-    "dotenv": "^16.4.5"
+    "ws": "^8.21.0"
   }
 }

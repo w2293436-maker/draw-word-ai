@@ -350,7 +350,27 @@ ${text}`;
     scenes = JSON.parse(jsonStr);
   } catch (e) {
     console.error('分镜JSON解析失败:', e.message);
-    throw new Error('AI 返回的分镜数据格式异常，请重试');
+
+    // 第1次重试：更严格格式要求
+    console.log('  🔄 重试第1次（强化JSON格式指令）...');
+    try {
+      const retryResp = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: '你必须且只能返回合法JSON数组。不要有任何解释、注释或额外文字。JSON中所有字符串值必须用双引号包裹，不得使用单引号。不得有尾随逗号。确保所有花括号和方括号正确闭合。' },
+          { role: 'user', content: scenePrompt + '\n\n⚠️ 上次返回的JSON格式错误。这次必须返回完全合法的JSON，不要用markdown包裹。' },
+        ],
+        temperature: 0.3,
+        max_tokens: 5000,
+      });
+      const raw2 = retryResp.choices[0].message.content.trim();
+      const jsonStr2 = raw2.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '');
+      scenes = JSON.parse(jsonStr2);
+      console.log('  ✅ 重试成功');
+    } catch (e2) {
+      console.error('重试也失败:', e2.message);
+      throw new Error('AI 返回数据异常，请稍后重试');
+    }
   }
 
   console.log(`  ✅ ${scenes.length} 个分镜，开始生成插图...`);

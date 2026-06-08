@@ -93,7 +93,56 @@ app.post('/api/generate-comic', async (req, res) => {
   }
 });
 
-// 音频
+// TTS 语音合成（Python edge-tts 引擎，微软纯正发音）
+app.post('/api/tts', async (req, res) => {
+  try {
+    const { text, lang } = req.body;
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ error: '请输入文本' });
+    }
+
+    const voice = lang === 'es' ? 'es-ES-AlvaroNeural' : 'en-US-JennyNeural';
+    const tmpFile = require('path').join(require('os').tmpdir(), `tts_${Date.now()}.mp3`);
+
+    const { execSync } = require('child_process');
+    execSync(`python -m edge_tts --voice "${voice}" --text "${text.replace(/"/g, '\\"')}" --write-media "${tmpFile}"`, {
+      timeout: 15000,
+      stdio: 'pipe',
+    });
+
+    const buffer = require('fs').readFileSync(tmpFile);
+    require('fs').unlinkSync(tmpFile);
+
+    if (buffer.length === 0) throw new Error('TTS 生成空音频');
+
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Content-Length', buffer.length);
+    res.send(buffer);
+  } catch (err) {
+    console.error('TTS 失败:', err.message);
+    res.status(500).json({ error: `语音合成失败` });
+  }
+});
+
+// 文本分段
+function splitText(text, maxLen) {
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const chunks = [];
+  let current = '';
+
+  for (const s of sentences) {
+    if ((current + s).length > maxLen && current) {
+      chunks.push(current.trim());
+      current = s;
+    } else {
+      current += ' ' + s;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.length > 0 ? chunks : [text.slice(0, maxLen)];
+}
+
+// 音频（保留兼容）
 app.post('/api/generate-audio', async (req, res) => {
   try {
     const { text } = req.body;

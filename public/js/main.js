@@ -31,14 +31,47 @@ let currentStyle = 'manga';   // 当前风格
 let currentLang = 'en';       // 当前语言
 
 // ---- 初始化 ----
+// 移动端音频预解锁（解决异步fetch后play()被拦截的问题）
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+
+  // 方案1：AudioContext 解锁
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    // 创建静默buffer并播放，完成解锁
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch (e) { /* ignore */ }
+
+  // 方案2：HTML5 Audio 预解锁
+  audioPlayer.volume = 0;
+  audioPlayer.play().then(() => {
+    audioPlayer.pause();
+    audioPlayer.currentTime = 0;
+    audioPlayer.volume = 1;
+  }).catch(() => {});
+
+  // 方案3：浏览器 TTS 预加载
+  if (window.speechSynthesis) {
+    loadVoices();
+    const dummy = new SpeechSynthesisUtterance('');
+    dummy.volume = 0;
+    window.speechSynthesis.speak(dummy);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
   setupEventListeners();
-  // 预加载浏览器语音（避免首次点击延迟）
-  if (window.speechSynthesis) {
-    window.speechSynthesis.getVoices();
-    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-  }
+  // 移动端首次触摸解锁
+  document.addEventListener('touchstart', unlockAudio, { once: true });
+  document.addEventListener('click', unlockAudio, { once: true });
 });
 
 // 检查后端模式（演示 vs 正式）
@@ -163,12 +196,22 @@ async function generateComic() {
 
     clearInterval(msgInterval);
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || `请求失败 (${res.status})`);
+    // 先读文本再判断，避免 JSON 解析崩溃
+    const rawText = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      // 服务器返回了 HTML 或其他非 JSON 内容
+      console.error('服务器返回异常:', rawText.slice(0, 200));
+      throw new Error('网络异常，请刷新页面重试（可能是隧道连接断开）');
     }
 
-    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `请求失败 (${res.status})`);
+    }
+
     currentData = data;
     showResult(data);
 
@@ -275,49 +318,131 @@ let isSpeaking = false;
 let speechUtterance = null;
 
 // 逐句朗读
-function speakSentence(btn) {
+// 预加载语音列表（iOS 需要）
+let cachedVoices = [];
+function loadVoices() {
+  return new Promise(resolve => {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      cachedVoices = voices;
+      resolve(voices);
+      return;
+    }
+    window.speechSynthesis.onvoiceschanged = () => {
+      cachedVoices = window.speechSynthesis.getVoices();
+      resolve(cachedVoices);
+    };
+    // 超时兜底（3秒后无论如何返回）
+    setTimeout(() => resolve(cachedVoices), 3000);
+  });
+}
+
+async function speakSentence(btn) {
   const text = btn.dataset.text;
   const lang = btn.dataset.lang || 'en';
-  if (!text || !window.speechSynthesis) return;
+  if (!text) return;
 
-  // 停止当前朗读
-  window.speechSynthesis.cancel();
+  // 停止当前播放
+  try { window.speechSynthesis?.cancel(); } catch {}
+  if (!audioPlayer.paused) { audioPlayer.pause(); audioPlayer.currentTime = 0; }
   isSpeaking = false;
 
   // 重置所有按钮
   document.querySelectorAll('.btn-listen-sentence').forEach(b => b.textContent = '🔊');
 
-  const voices = window.speechSynthesis.getVoices();
-  let voice;
-  if (lang === 'es') {
-    voice = voices.find(v => v.lang === 'es-ES')
-      || voices.find(v => v.lang.startsWith('es'));
-  } else {
-    voice = voices.find(v => v.lang === 'en-US')
-      || voices.find(v => v.lang.startsWith('en'));
+  btn.textContent = '⏳';
+
+  // 检测浏览器是否支持 TTS
+  const hasTTS = typeof SpeechSynthesisUtterance !== 'undefined' && window.speechSynthesis;
+
+  // 西语一律服务端（纯正发音），英语优先浏览器 TTS
+  if (lang === 'es' || !hasTTS) {
+    await serverTTS(btn, text, lang);
+    return;
   }
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.voice = voice;
-  utterance.lang = lang === 'es' ? 'es-ES' : 'en-US';
-  utterance.rate = lang === 'es' ? 0.85 : 0.85;
-  utterance.pitch = 1;
+  // 英语：尝试浏览器 TTS
+  if (hasTTS) {
+    const voices = await loadVoices();
+    const voice = voices.find(v => v.lang === 'en-US')
+      || voices.find(v => v.lang.startsWith('en-'));
 
-  btn.textContent = '🔈';
-  isSpeaking = true;
-  speechUtterance = utterance;
+    if (voice) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.voice = voice;
+      utterance.lang = 'en-US';
+      utterance.rate = 0.85;
+      utterance.pitch = 1;
+      utterance.volume = 1;
 
-  utterance.onend = () => {
-    btn.textContent = '🔊';
-    isSpeaking = false;
-  };
-  utterance.onerror = () => {
+      btn.textContent = '🔈';
+      isSpeaking = true;
+      speechUtterance = utterance;
+
+      return new Promise(resolve => {
+        utterance.onend = () => { btn.textContent = '🔊'; isSpeaking = false; resolve(); };
+        utterance.onerror = () => {
+          window.speechSynthesis.cancel();
+          serverTTS(btn, text, lang);
+          resolve();
+        };
+        window.speechSynthesis.speak(utterance);
+      });
+    }
+  }
+
+  // 英语兜底：服务端
+  await serverTTS(btn, text, lang);
+}
+
+// 全局 AudioContext（移动端播放用）
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// 服务端 TTS（诊断页验证可用的方式）
+async function serverTTS(btn, text, lang) {
+  btn.textContent = '⏳';
+
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+
+    btn.textContent = '🔈';
+    isSpeaking = true;
+
+    audio.onended = () => { btn.textContent = '🔊'; isSpeaking = false; };
+    audio.onerror = () => { btn.textContent = '⚠️'; isSpeaking = false; };
+
+    // 等音频加载完再播放（诊断页成功的做法）
+    await new Promise((resolve, reject) => {
+      audio.oncanplaythrough = () => {
+        audio.play().then(resolve).catch(reject);
+      };
+      audio.onerror = reject;
+      // 3秒超时
+      setTimeout(() => reject(new Error('加载超时')), 3000);
+    });
+
+  } catch (e) {
+    console.error('TTS失败:', e);
     btn.textContent = '⚠️';
     isSpeaking = false;
-    setTimeout(() => { btn.textContent = '🔊'; }, 1000);
-  };
-
-  window.speechSynthesis.speak(utterance);
+    setTimeout(() => { btn.textContent = '🔊'; }, 1500);
+  }
 }
 
 async function playAudio() {
@@ -325,63 +450,17 @@ async function playAudio() {
 
   const btnAudio = $('#btnAudio');
 
-  // 如果正在播放，停止
+  // 停止当前播放
   if (isSpeaking) {
-    window.speechSynthesis.cancel();
+    try { window.speechSynthesis?.cancel(); } catch {}
+    if (!audioPlayer.paused) { audioPlayer.pause(); audioPlayer.currentTime = 0; }
     isSpeaking = false;
     btnAudio.textContent = '🔊 听朗读';
     return;
   }
 
-  // 检查浏览器是否支持
-  if (!window.speechSynthesis) {
-    btnAudio.textContent = '❌ 浏览器不支持';
-    setTimeout(() => { btnAudio.textContent = '🔊 听朗读'; }, 2000);
-    return;
-  }
-
-  btnAudio.textContent = '🔊 正在朗读...';
-
-  // 获取英语语音
-  const voices = window.speechSynthesis.getVoices();
-  // 优先选英语母语语音
-  let voice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google'))
-    || voices.find(v => v.lang === 'en-US')
-    || voices.find(v => v.lang.startsWith('en'));
-
-  const utterance = new SpeechSynthesisUtterance(currentData.fullText);
-  utterance.voice = voice;
-  utterance.lang = 'en-US';
-  utterance.rate = 0.9;    // 语速稍慢（学习友好）
-  utterance.pitch = 1;
-  utterance.volume = 1;
-
-  speechUtterance = utterance;
-  isSpeaking = true;
-
-  utterance.onend = () => {
-    isSpeaking = false;
-    btnAudio.textContent = '🔊 听朗读';
-  };
-
-  utterance.onerror = () => {
-    isSpeaking = false;
-    btnAudio.textContent = '⚠️ 朗读出错，重试';
-    setTimeout(() => { btnAudio.textContent = '🔊 听朗读'; }, 2000);
-  };
-
-  // 加载语音（移动端需要）
-  if (voices.length === 0) {
-    await new Promise(resolve => {
-      window.speechSynthesis.onvoiceschanged = () => {
-        const v = window.speechSynthesis.getVoices();
-        utterance.voice = v.find(v => v.lang === 'en-US') || v[0];
-        resolve();
-      };
-    });
-  }
-
-  window.speechSynthesis.speak(utterance);
+  // 统一走服务端 TTS（兼容所有设备）
+  await serverTTS(btnAudio, currentData.fullText, currentLang || 'en');
 }
 
 // ---- 语法弹窗 ----
