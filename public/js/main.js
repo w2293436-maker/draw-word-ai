@@ -737,11 +737,14 @@ function currentPreview() {
 
 // 打开/关闭设置面板
 function setupSettingsEvents() {
-  // 打开
-  $('#btnOpenSettings').addEventListener('click', () => {
-    settingsOverlay.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-  });
+  // 打开（按钮可能已被删除，安全检查）
+  const btnOpen = $('#btnOpenSettings');
+  if (btnOpen) {
+    btnOpen.addEventListener('click', () => {
+      settingsOverlay.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    });
+  }
 
   // 关闭
   function closeSettings() {
@@ -759,8 +762,10 @@ function setupSettingsEvents() {
     closeSettings();
     // 小动画提示
     const badge = $('#btnOpenSettings');
-    badge.textContent = '✅ 已保存';
-    setTimeout(() => { badge.innerHTML = '⚙️ <span class="btn-settings-text">自定义</span>'; }, 1500);
+    if (badge) {
+      badge.textContent = '✅ 已保存';
+      setTimeout(() => { badge.innerHTML = '⚙️ <span class="btn-settings-text">自定义</span>'; }, 1500);
+    }
   });
 
   // 恢复默认
